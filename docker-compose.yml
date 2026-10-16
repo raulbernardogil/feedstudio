@@ -1,0 +1,65 @@
+name: feedstudio
+
+x-backend-env: &backend-env
+  FEEDSTUDIO_ENVIRONMENT: ${FEEDSTUDIO_ENVIRONMENT:-production}
+  FEEDSTUDIO_DATABASE_URL: postgresql+psycopg://feedstudio:${POSTGRES_PASSWORD:-feedstudio}@db:5432/feedstudio
+  FEEDSTUDIO_REDIS_URL: redis://redis:6379/0
+  FEEDSTUDIO_JOB_BACKEND: rq
+  FEEDSTUDIO_STORAGE_DIR: /data/storage
+  FEEDSTUDIO_PUBLIC_BASE_URL: ${FEEDSTUDIO_PUBLIC_BASE_URL:-http://localhost:8080}
+  FEEDSTUDIO_CORS_ORIGINS: '["http://localhost:8080"]'
+  FEEDSTUDIO_API_TOKEN: ${FEEDSTUDIO_API_TOKEN:-}
+  FEEDSTUDIO_MAX_FEED_MB: ${FEEDSTUDIO_MAX_FEED_MB:-200}
+  FEEDSTUDIO_ALLOW_HTTP_SOURCES: ${FEEDSTUDIO_ALLOW_HTTP_SOURCES:-false}
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: feedstudio
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-feedstudio}
+      POSTGRES_DB: feedstudio
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U feedstudio"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    environment: *backend-env
+    volumes:
+      - storage:/data
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports:
+      - "8000:8000"
+
+  worker:
+    build: ./backend
+    command: ["rq", "worker", "feedstudio", "--url", "redis://redis:6379/0"]
+    environment: *backend-env
+    volumes:
+      - storage:/data
+    depends_on:
+      api: { condition: service_healthy }
+
+  web:
+    build: ./frontend
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  pgdata:
+  storage:
