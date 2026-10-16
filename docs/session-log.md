@@ -1,0 +1,170 @@
+# Session log and operator guide
+
+Handoff document to resume work. Last updated: **2026-10-16**.
+Commits: `f8cd27f` (Phase 1 MVP), `b313a53` (PostgreSQL/compose verification).
+
+## 1. What was built
+
+Feed Studio Phase 1: import an XML product feed, transform it with visual rules,
+validate it against Google Merchant Center and publish an optimized XML at a
+stable URL. Details: [README](../README.md), [architecture](architecture.md),
+[rules engine](rules-engine.md), [requirements matrix](requirements-matrix.md),
+[pending work](pending.md).
+
+| Area | State |
+|---|---|
+| Backend (FastAPI, lxml, SQLAlchemy, Alembic, RQ) | Done, 86 tests passing |
+| Frontend (React, TypeScript, Tailwind, TanStack) | Done, 6 tests, type check, build |
+| Real feed `client_feed.xml` | Imported, transformed, published, reimported without attribute loss |
+| PostgreSQL 16 | API tests 8/8 passing |
+| Docker Compose (db, redis, api, worker, web) | Running end to end |
+| Meta / Pinterest / scheduling / Google Drive / users | Not started (Phase 3–4) |
+
+## 2. Chronology of what was executed
+
+1. Analyzed the real feed: 4,159 items, 13 MB, RSS 2.0 + `g:` namespace,
+   22 attributes (nested `g:tax`, repeated `g:additional_image_link`).
+2. Researched official specs (Google product data spec, RSS spec, attribute
+   rules, Pinterest catalogs, DataFeedWatch home). Meta's official page could not
+   be read (JS-rendered) → Meta requirements marked *pending*.
+3. Backend built test-first: rule engine (32 tests), secure parser (17 tests),
+   validation + export (10), SSRF fetcher (21), API end-to-end (8).
+4. Benchmark on the real feed exposed a bug: SQLite "database is locked" when
+   progress updates ran during a long import transaction → fixed with
+   per-batch commits.
+5. Real-feed diagnostics before rules: every product had 3 blocking errors
+   (locale price `949.990,00 CLP`, locale `sale_price`, `availability = In Stock`);
+   554 with `sale_price ≥ price`; 2,383 likely variants without `item_group_id`.
+   With 8 rules: 1 product with a blocking error left (missing image).
+6. Frontend built and exercised in the browser: catalog search, channel
+   creation, diagnostics → "Crear regla" → backend preview → save, generation,
+   before/after view, publication; the public URL served the XML.
+7. Real-feed round trip: exported XML parsed again → same 4,159 ids,
+   0 lost attributes, 16 untouched fields identical to the original.
+8. Docker Desktop returned HTTP 500 (`no route to host` to the WSL VM).
+   Fix: quit Docker Desktop → `wsl --shutdown` → reopen.
+9. API tests passed on PostgreSQL 16; compose stack ran the real feed through
+   nginx → API → PostgreSQL → RQ worker (import 4.2 s, generation 5.6 s).
+10. Fixed worker healthcheck and duplicated security header; committed.
+
+## 3. How to run
+
+### Option A — Docker (recommended, production-like)
+
+```bash
+cd D:/Proyectos/Desarrollo/DataFeed_CLONED
+copy .env.example .env          # first time only; set POSTGRES_PASSWORD
+docker compose up -d --build
+```
+
+- UI: http://localhost:8080
+- API + OpenAPI docs: http://localhost:8000/docs
+- Health: http://localhost:8000/health
+
+If `docker info` fails with HTTP 500: quit Docker Desktop, run `wsl --shutdown`,
+reopen Docker Desktop and wait for "Engine running".
+
+### Option B — Local development (SQLite, no Docker)
+
+```bash
+cd backend
+.venv/Scripts/python run_dev.py      # API on :8000 (migrates automatically)
+```
+
+```bash
+cd frontend
+npm run dev                          # UI on :5173
+```
+
+Only one option at a time: both use port 8000.
+
+## 4. What it does — 7-step flow in the UI
+
+1. **Fuentes XML → Añadir fuente**: upload the XML (or an HTTPS URL).
+2. **Canales de exportación → Nuevo canal**: Google Merchant Center.
+3. **Validación y diagnóstico**: problems in the original data; "Crear regla"
+   pre-fills the fix.
+4. **Editor de reglas**: conditions + actions, **Previsualizar**, **Guardar**.
+5. **Canales → Generar y validar**: creates a candidate version.
+6. **Vista previa**: original vs transformed, per rule.
+7. **Publicar** (or download XML/CSV). The public URL is what Merchant Center polls.
+
+## 5. How to stop it
+
+| Goal | Command |
+|---|---|
+| Stop, keep all data | `docker compose stop` (resume: `docker compose start`) |
+| Remove containers, keep data | `docker compose down` |
+| **Delete everything, including data** | `docker compose down -v` (irreversible) |
+| Local dev | Ctrl+C in each terminal |
+
+## 6. How to keep the results
+
+Data lives in Docker volumes `feedstudio_pgdata` (database) and
+`feedstudio_storage` (original XML snapshots + generated feeds). They survive
+`stop` and `down`; only `down -v` deletes them.
+
+Backups:
+
+```bash
+docker compose exec -T db pg_dump -U feedstudio feedstudio > backup-feedstudio.sql
+```
+
+```bash
+docker run --rm -v feedstudio_storage:/data -v %cd%:/backup alpine tar czf /backup/storage.tgz -C /data .
+```
+
+(in Git Bash use `$(pwd)` instead of `%cd%`). Restore the database with
+`docker compose exec -T db psql -U feedstudio feedstudio < backup-feedstudio.sql`.
+
+Individual results: download each version as XML/CSV from **Canales**, the
+filtered catalog as CSV from **Catálogos**, and the original XML from
+**Fuentes XML**. Rules are versioned in the database (history icon in the
+rule list). Local development data is in `backend/data/` (not committed).
+
+## 7. Recommended tests
+
+Automated (run after every change):
+
+```bash
+cd backend && .venv/Scripts/python -m pytest
+```
+
+```bash
+cd frontend && npx vitest run && npx tsc -b
+```
+
+Against PostgreSQL (with a test database running):
+`FEEDSTUDIO_TEST_DATABASE_URL=postgresql+psycopg://user:pass@host:port/db pytest tests/test_api_flow.py`.
+
+Manual checks still worth doing:
+
+1. Upload the real XML **through the UI dialog** (the automated browser could
+   not attach files; the endpoint itself is tested).
+2. Build the acceptance rules **entirely in the editor**: brand prefix with a
+   nested condition, color/size suffix with `[ - {color}]`, category guard,
+   description fallback; confirm the preview matches the generated version.
+3. Ask the client about the **554 products with `sale_price ≥ price`** and the
+   **2,383 probable variants without `item_group_id`** — data issues, not tool issues.
+4. Merchant Center test: expose the public URL (deploy to a server or a
+   tunnel; `localhost` is not reachable by Google), register it as a feed in a
+   test Merchant Center account, and compare Google's diagnostics with ours.
+   Local validation does not guarantee approval.
+5. When the client provides the feed URL: create a URL source and use
+   **Actualizar desde URL**; confirm the previous catalog is kept if it fails.
+6. Publication safety: exclude most products with a rule, generate, publish →
+   it must be blocked; then roll back to the previous version.
+7. Security spot checks: URL source `https://127.0.0.1/...` must be rejected;
+   set `FEEDSTUDIO_API_TOKEN` and confirm the API requires it while `/f/...`
+   stays public.
+8. Larger feeds: `python -m scripts.benchmark <feed> --synthetic-mb 100 --full`.
+
+## 8. Next steps (suggested order)
+
+1. Get the feed URL from the client and test URL refresh.
+2. Phase 3: scheduled refresh with auto-publish threshold, Pinterest adapter
+   (requirements already gathered), Meta adapter after verifying the official spec.
+3. Phase 2 leftovers: title optimizer screen, color/size dictionaries,
+   external image checks.
+4. Phase 4: users/roles before exposing the app to more people.
+5. Set up a git remote and CI (pytest + vitest + PostgreSQL service).
