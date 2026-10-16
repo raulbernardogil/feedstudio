@@ -56,8 +56,10 @@ cp .env.example .env        # set POSTGRES_PASSWORD, optionally FEEDSTUDIO_API_T
 docker compose up --build   # UI: http://localhost:8080  API: http://localhost:8000
 ```
 
-> The compose file was validated with `docker compose config` but **not run**
-> in the development session (Docker daemon unavailable). See docs/pending.md.
+Verified with Docker Desktop (WSL 2): the real feed runs end to end through
+nginx, the API, PostgreSQL 16 and the RQ worker. On Windows, if `docker info`
+returns HTTP 500 with `no route to host` in the Docker Desktop logs, quit Docker
+Desktop, run `wsl --shutdown` and start it again.
 
 ## Typical flow
 

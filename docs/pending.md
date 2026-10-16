@@ -3,13 +3,17 @@
 Explicit list of what is NOT implemented. Nothing here is simulated in the UI:
 features that do not exist have no buttons.
 
-## Not verified in this session
-- **PostgreSQL / Redis / RQ / Docker Compose execution.** The Docker daemon
-  returned HTTP 500 during development, so the compose stack was validated only
-  with `docker compose config`. Run the API tests against PostgreSQL with
-  `FEEDSTUDIO_TEST_DATABASE_URL=postgresql+psycopg://...` before relying on it.
+## Verified on 2026-10-16
+- API test suite against PostgreSQL 16 (`FEEDSTUDIO_TEST_DATABASE_URL`): 8/8 pass.
+- `docker compose up --build`: db, redis, api (healthy), RQ worker and nginx web.
+  The real feed was imported, transformed, generated and published through
+  `http://localhost:8080` with jobs executed by the RQ worker.
+
+## Not verified
 - Browser file upload through the dialog (the automated browser could not attach
   local files; the same endpoint was exercised with curl and in API tests).
+- Production hardening of the compose stack (TLS termination, backups,
+  resource limits, secrets management).
 
 ## Phase 2 — advanced engine (partially done)
 Done already: nested conditions, all 20 actions, custom labels via rules,

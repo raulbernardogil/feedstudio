@@ -47,6 +47,8 @@ services:
   worker:
     build: ./backend
     command: ["rq", "worker", "feedstudio", "--url", "redis://redis:6379/0"]
+    healthcheck:
+      disable: true  # the image healthcheck probes the HTTP API, which the worker does not serve
     environment: *backend-env
     volumes:
       - storage:/data

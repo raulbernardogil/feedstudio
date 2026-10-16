@@ -27,8 +27,16 @@ Memory (parse phase, process RSS sampled every 500 items with psutil):
 `tracemalloc` reports ~0.3 MB because it only tracks Python objects; lxml's
 native memory is only visible in RSS. Full-pipeline memory was not measured.
 
-Not measured yet: PostgreSQL (Docker daemon unavailable in the test session),
-concurrent users, RQ workers, files above 112 MB.
+Docker Compose stack (PostgreSQL 16 + Redis + 1 RQ worker, Docker Desktop on
+WSL 2, same machine), real feed, job durations reported by the worker:
+
+| Step | Duration |
+|---|---|
+| Import (4,159 products, 22 attributes) | 4.2 s |
+| Generate with 4 rules (4,159 items, XML 11.8 MB) | 5.6 s |
+
+Not measured yet: concurrent users, several workers, files above 112 MB on
+PostgreSQL.
 
 The real feed contains long descriptions (~3 KB per item), so throughput in
 products/second is lower than for typical feeds with short descriptions.
