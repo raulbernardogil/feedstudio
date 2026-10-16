@@ -32,7 +32,7 @@ stable URL. Details: [README](../README.md), [architecture](architecture.md),
 4. Benchmark on the real feed exposed a bug: SQLite "database is locked" when
    progress updates ran during a long import transaction → fixed with
    per-batch commits.
-5. Real-feed diagnostics before rules: every product had 3 blocking errors
+5. Real-feed diagnostics before rules: every product was flagged with 3 errors (later reclassified as warnings, see step 11)
    (locale price `949.990,00 CLP`, locale `sale_price`, `availability = In Stock`);
    554 with `sale_price ≥ price`; 2,383 likely variants without `item_group_id`.
    With 8 rules: 1 product with a blocking error left (missing image).
@@ -46,6 +46,14 @@ stable URL. Details: [README](../README.md), [architecture](architecture.md),
 9. API tests passed on PostgreSQL 16; compose stack ran the real feed through
    nginx → API → PostgreSQL → RQ worker (import 4.2 s, generation 5.6 s).
 10. Fixed worker healthcheck and duplicated security header; committed.
+11. User review: products were all shown as errors although price, sale price
+    and stock are present. Re-checked the official pages: Google documents only
+    the `15.00 USD` / `in_stock` formats but does not state that other spellings
+    are rejected. Readable-but-undocumented formats are now **warnings**
+    (`price_locale_format`, `noncanonical_availability`, `noncanonical_value`);
+    unreadable values remain errors. Messages now state the problem and the
+    interpretation (`«949.990,00 CLP» se interpreta como 949990.00 CLP`).
+    Real feed: 5 products with errors (was 4,159).
 
 ## 3. How to run
 

@@ -72,7 +72,7 @@ def test_full_acceptance_flow(app_client, tmp_path: Path):
 
     # Original diagnostics show real-feed problems.
     issues = {i["code"] for i in c.get(f"/api/catalogs/{source_id}/issues").json()["issues"]}
-    assert {"price_locale_format", "invalid_availability", "missing_description"} <= issues
+    assert {"price_locale_format", "noncanonical_availability", "missing_description"} <= issues
 
     channel = c.post("/api/channels", json={"source_id": source_id, "name": "Google Chile", "kind": "google",
                                             "settings": {"title": "Solano", "link": "https://www.tienda-demo.example"}}).json()
@@ -120,7 +120,7 @@ def test_full_acceptance_flow(app_client, tmp_path: Path):
     assert version["status"] == "ready" and version["item_count"] == 30
     report = c.get(f"/api/feed-versions/{vid}/issues").json()
     codes = {i["code"] for i in report["issues"]}
-    assert "price_locale_format" not in codes and "invalid_availability" not in codes and "missing_description" not in codes
+    assert "price_locale_format" not in codes and "noncanonical_availability" not in codes and "missing_description" not in codes
 
     items = c.get(f"/api/feed-versions/{vid}/items", params={"only_changed": True, "page_size": 10}).json()
     assert items["total"] == 30

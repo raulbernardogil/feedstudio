@@ -72,11 +72,13 @@ Desktop, run `wsl --shutdown` and start it again.
 6. **Vista previa**: compare original vs transformed, filter by rule/errors.
 7. **Publicar** (or download XML/CSV). Give the public URL to Merchant Center.
 
-Findings on the real feed (before rules): every product has a locale-formatted
-`price` and `sale_price`, `availability = "In Stock"` (Google documents
-`in_stock`) and `identifier_exists = FALSE` (documented `yes`/`no`); 554 products
-have `sale_price ≥ price`; 2,383 look like variants without `item_group_id`.
-With 8 rules, blocking errors went from 4,159 products to 1 (a missing image).
+Findings on the real feed (before rules): 5 products with blocking errors
+(4 empty descriptions, 1 missing main image). Every product has warnings for
+undocumented but readable formats: locale-formatted `price`/`sale_price`
+(`949.990,00 CLP`), `availability = "In Stock"` (documented `in_stock`) and
+`identifier_exists = FALSE` (documented `yes`/`no`). 554 products have
+`sale_price ≥ price`; 2,383 look like variants without `item_group_id`.
+With 8 rules only 1 blocking error is left (the missing image).
 
 ## Tests
 

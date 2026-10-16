@@ -27,7 +27,7 @@ def test_real_feed_patterns_are_flagged():
     attrs = {**VALID, "price": ["949.990,00 CLP"], "sale_price": ["569.990,00 CLP"], "availability": ["In Stock"],
              "identifier_exists": ["FALSE"], "link": ["http://www.tienda-demo.example/x.html"]}
     found = codes(attrs)
-    assert {"price_locale_format", "sale_price_locale_format", "invalid_availability", "invalid_identifier_exists", "insecure_url"} <= found
+    assert {"price_locale_format", "sale_price_locale_format", "noncanonical_availability", "invalid_identifier_exists", "insecure_url"} <= found
 
 
 def test_required_fields_and_formats():
@@ -109,3 +109,29 @@ def test_csv_export_escapes_formulas(tmp_path):
     content = out.read_text(encoding="utf-8-sig").splitlines()
     assert content[0] == "id,title,tax"
     assert content[1] == "1,'=HYPERLINK(1),country=CL"
+
+
+def by_code(attrs):
+    return {i.code: i for i in validate_product(attrs)}
+
+
+def test_readable_but_undocumented_formats_are_warnings_not_errors():
+    issues = by_code({**VALID, "price": ["949.990,00 CLP"], "sale_price": ["569.990,00 CLP"],
+                      "availability": ["In Stock"], "condition": ["New"]})
+    for code in ("price_locale_format", "sale_price_locale_format", "noncanonical_availability", "noncanonical_value"):
+        assert issues[code].severity.value == "warning", code
+    assert not any(i.severity.value == "error" for i in issues.values())
+
+
+def test_unreadable_values_remain_errors():
+    issues = by_code({**VALID, "price": ["consultar"], "availability": ["disponible"], "condition": ["nuevo"]})
+    assert issues["invalid_price"].severity.value == "error"
+    assert issues["invalid_availability"].severity.value == "error"
+    assert issues["invalid_condition"].severity.value == "error"
+
+
+def test_messages_explain_the_problem_and_value():
+    issues = by_code({**VALID, "price": ["949.990,00 CLP"], "availability": ["In Stock"]})
+    assert issues["price_locale_format"].message == (
+        "Precio con formato no documentado (separadores locales): «949.990,00 CLP» se interpreta como 949990.00 CLP")
+    assert issues["noncanonical_availability"].message == "Disponibilidad con formato no documentado: «In Stock» → in_stock"

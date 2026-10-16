@@ -28,7 +28,9 @@ Sources:
 | `custom_label_0..4` max length | 100 | Confirmed | `too_long` |
 | `custom_label` 1,000 unique values per label | not checked | Confirmed, not implemented | — |
 | `additional_image_link` | max 10 values, 2000 chars each | Confirmed | `too_many_additional_images` |
-| `availability` values | `in_stock`, `out_of_stock`, `preorder`, `backorder` | Confirmed | `invalid_availability` |
+| `availability` values | `in_stock`, `out_of_stock`, `preorder`, `backorder` | Confirmed (https://support.google.com/merchants/answer/6324448) | `invalid_availability` (error) for unknown values |
+| `availability` written as `In Stock` / `in stock` | warning, normalization suggested | Inferred: the spec does not say other spellings are rejected; Google's UI labels the value "In stock" | `noncanonical_availability` |
+| `condition`/`gender`/`age_group` differing only in case/spaces (`New`) | warning | Inferred (same reasoning) | `noncanonical_value` |
 | `availability_date` required with `preorder` | warning | Confirmed | `preorder_without_date` |
 | `condition` values | `new`, `refurbished`, `used` | Confirmed | `invalid_condition` |
 | `identifier_exists` values | `yes`, `no` | Confirmed | `invalid_identifier_exists` (warning: older feeds use TRUE/FALSE; Google's acceptance of those is **not** confirmed) |
@@ -36,8 +38,8 @@ Sources:
 | `age_group` values | `newborn`, `infant`, `toddler`, `kids`, `adult` | Confirmed | `invalid_age_group` |
 | `gtin` lengths | 8, 12, 13, 14 digits | Confirmed | `invalid_gtin` |
 | GTIN check digit | GS1 mod-10 | Inferred (GS1 standard) | `validation/gtin.py` |
-| `price` format | number + ISO 4217 code, **period** as decimal separator | Confirmed | `invalid_price`, `price_locale_format` |
-| Thousands separators in price | flagged as error | Inferred: spec shows `15.00 USD` and requires `.` as decimal; community reports show misparsing of `1.190`. | `price_locale_format` |
+| `price` format | number + ISO 4217 code, max 2 decimals | Confirmed (https://support.google.com/merchants/answer/6324371) | `invalid_price` (error) when no amount can be read |
+| Thousands separators / comma decimal in price (`949.990,00 CLP`) | **warning**, normalization suggested | Inferred. The price page only shows period examples (`15.00 USD`) and does **not** say other separators are rejected. A "decimal point must be a period" sentence exists only for shipping/minimum-order amounts. Community reports show misparsing of `1.190`. Corrected on 2026-10-16: it was previously classified as a blocking error. | `price_locale_format` |
 | Output price `949990.00 CLP` (2 decimals for CLP) | 2 decimals by default, configurable | Inferred (CLP has 0 minor units in ISO 4217; Google examples use 2 decimals) | `normalize_price` |
 | `sale_price` same format, lower than `price` | error / warning | Confirmed / Inferred | `invalid_sale_price`, `sale_price_not_lower` |
 | Image min 500×500 px enforced from 2027-01-31 | not checked (no remote image fetching yet) | Confirmed, not implemented | — |

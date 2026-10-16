@@ -14,11 +14,13 @@ from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
 from feedstudio.catalog.attributes import Attributes, get_text, get_values, is_blank
-from feedstudio.rules.text import contains_html, parse_price
+from feedstudio.rules.text import contains_html, format_price, parse_price
 from feedstudio.validation.gtin import clean_gtin, is_valid_gtin
 from feedstudio.validation.issues import Issue, IssueDefinition, Severity
 
 SPEC_URL = "https://support.google.com/merchants/answer/7052112"
+PRICE_URL = "https://support.google.com/merchants/answer/6324371"
+AVAILABILITY_URL = "https://support.google.com/merchants/answer/6324448"
 SPEC_CONSULTED = "2026-10-16"
 
 MAX_LENGTHS: dict[str, int] = {
@@ -72,24 +74,34 @@ DEFINITIONS: dict[str, IssueDefinition] = {
         IssueDefinition("invalid_image_link", E, "URL de imagen inválida", "La URL de imagen debe ser absoluta (http/https).", SPEC_URL),
         IssueDefinition("missing_price", E, "Precio ausente", "Todos los productos requieren price.", SPEC_URL),
         IssueDefinition("invalid_price", E, "Precio inválido", "Formato esperado: importe y moneda ISO 4217, p. ej. 15.00 USD.", SPEC_URL),
-        IssueDefinition("price_locale_format", E, "Precio con separadores locales",
-                        "Google exige el punto como separador decimal. Normaliza el precio (949.990,00 CLP → 949990.00 CLP).", SPEC_URL,
-                        _rule("Normalizar precio", "price", [{"type": "normalize_price", "decimals": 2}])),
-        IssueDefinition("sale_price_locale_format", E, "Precio de oferta con separadores locales",
-                        "Normaliza sale_price con el mismo formato que price.", SPEC_URL,
-                        _rule("Normalizar precio de oferta", "sale_price", [{"type": "normalize_price", "decimals": 2}])),
+        # Google's price page only shows the "15.00 USD" format; it does not state that
+        # other separators are rejected, so this is a warning, not a blocking error.
+        IssueDefinition("price_locale_format", W, "Precio con formato no documentado (separadores locales)",
+                        "El precio se puede leer, pero usa separador de miles y coma decimal. La especificación solo documenta "
+                        "el formato «15.00 USD»; normalizarlo evita interpretaciones erróneas (949.990,00 CLP → 949990.00 CLP).",
+                        PRICE_URL, _rule("Normalizar precio", "price", [{"type": "normalize_price", "decimals": 2}])),
+        IssueDefinition("sale_price_locale_format", W, "Precio de oferta con formato no documentado (separadores locales)",
+                        "Igual que en price: el valor se puede leer, pero conviene normalizarlo al formato «15.00 USD».",
+                        PRICE_URL, _rule("Normalizar precio de oferta", "sale_price", [{"type": "normalize_price", "decimals": 2}])),
         IssueDefinition("missing_currency", E, "Moneda ausente o inválida", "Añade el código ISO 4217 tras el importe.", SPEC_URL),
         IssueDefinition("invalid_sale_price", E, "Precio de oferta inválido", "sale_price debe tener importe y moneda ISO 4217.", SPEC_URL),
         IssueDefinition("sale_price_not_lower", W, "Precio de oferta no inferior al precio", "Revisa sale_price: debería ser menor que price.", SPEC_URL),
         IssueDefinition("currency_mismatch", W, "Monedas distintas en price y sale_price", "Usa la misma moneda en ambos precios.", SPEC_URL),
         IssueDefinition("missing_availability", E, "Disponibilidad ausente", "Indica in_stock, out_of_stock, preorder o backorder.", SPEC_URL),
-        IssueDefinition("invalid_availability", E, "Valor de disponibilidad no documentado",
-                        "Valores documentados: in_stock, out_of_stock, preorder, backorder.", SPEC_URL,
+        IssueDefinition("invalid_availability", E, "Valor de disponibilidad desconocido",
+                        "El valor no corresponde a ninguno de los documentados: in_stock, out_of_stock, preorder, backorder.",
+                        AVAILABILITY_URL),
+        IssueDefinition("noncanonical_availability", W, "Disponibilidad con formato no documentado",
+                        "El valor equivale a uno documentado (p. ej. «In Stock» = in_stock), pero la especificación usa "
+                        "minúsculas con guion bajo. Normalizarlo evita depender de la tolerancia de Google.", AVAILABILITY_URL,
                         _rule("Normalizar disponibilidad", "availability", [{"type": "map_values", "mappings": [
                             {"from": "In Stock", "to": "in_stock"}, {"from": "in stock", "to": "in_stock"},
                             {"from": "Out of Stock", "to": "out_of_stock"}, {"from": "out of stock", "to": "out_of_stock"},
                             {"from": "preorder", "to": "preorder"}, {"from": "backorder", "to": "backorder"}]}])),
         IssueDefinition("preorder_without_date", W, "Preventa sin availability_date", "availability_date es obligatorio con preorder.", SPEC_URL),
+        IssueDefinition("noncanonical_value", W, "Valor con formato no documentado",
+                        "El valor equivale a uno documentado salvo mayúsculas/espacios; normalízalo con un diccionario de valores.",
+                        SPEC_URL),
         IssueDefinition("invalid_condition", E, "Valor de condition no admitido", "Valores admitidos: new, refurbished, used.", SPEC_URL),
         IssueDefinition("invalid_identifier_exists", W, "identifier_exists con valor no documentado",
                         "Valores documentados: yes, no.", SPEC_URL,
@@ -126,9 +138,14 @@ DEFINITIONS: dict[str, IssueDefinition] = {
 }
 
 
-def _issue(code: str, attribute: str | None, message: str | None = None) -> Issue:
+def _issue(code: str, attribute: str | None, detail: str | None = None) -> Issue:
+    """The message always states the problem; ``detail`` adds the offending value."""
     d = DEFINITIONS[code]
-    return Issue(code, d.severity, attribute, message or d.title)
+    return Issue(code, d.severity, attribute, f"{d.title}: {detail}" if detail else d.title)
+
+
+def _canonical(value: str) -> str:
+    return "_".join(value.strip().casefold().split())
 
 
 def _valid_url(value: str) -> bool:
@@ -193,7 +210,10 @@ def validate_product(attrs: Attributes) -> list[Issue]:
     if not availability:
         add(_issue("missing_availability", "availability"))
     elif availability not in AVAILABILITY_VALUES:
-        add(_issue("invalid_availability", "availability", f"availability = '{availability}'"))
+        if _canonical(availability) in AVAILABILITY_VALUES:
+            add(_issue("noncanonical_availability", "availability", f"«{availability}» → {_canonical(availability)}"))
+        else:
+            add(_issue("invalid_availability", "availability", f"«{availability}»"))
     elif availability == "preorder" and is_blank(attrs, "availability_date"):
         add(_issue("preorder_without_date", "availability_date"))
     _enum(attrs, "condition", CONDITION_VALUES, "invalid_condition", issues)
@@ -206,7 +226,7 @@ def validate_product(attrs: Attributes) -> list[Issue]:
     for value in gtins:
         for part in value.split(","):
             if part.strip() and not is_valid_gtin(part):
-                add(_issue("invalid_gtin", "gtin", f"GTIN '{clean_gtin(part)}' no válido"))
+                add(_issue("invalid_gtin", "gtin", f"«{clean_gtin(part)}»"))
     if is_blank(attrs, "brand"):
         add(_issue("missing_brand", "brand"))
     identifier_exists = text("identifier_exists").strip().lower()
@@ -243,19 +263,24 @@ def validate_product(attrs: Attributes) -> list[Issue]:
 def _check_price(value: str, key: str, locale_code: str, invalid_code: str, issues: list[Issue]):
     parsed = parse_price(value)
     if parsed.amount is None:
-        issues.append(_issue(invalid_code, key, f"{key} = '{value.strip()}'"))
+        issues.append(_issue(invalid_code, key, f"«{value.strip()}» no contiene un importe legible"))
         return None
     if not parsed.currency:
-        issues.append(_issue("missing_currency", key, f"{key} = '{value.strip()}'"))
+        issues.append(_issue("missing_currency", key, f"«{value.strip()}»"))
     if _LOCALE_PRICE.search(value):
-        issues.append(_issue(locale_code, key, f"{key} = '{value.strip()}'"))
+        normalized = format_price(parsed.amount, parsed.currency)
+        issues.append(_issue(locale_code, key, f"«{value.strip()}» se interpreta como {normalized}"))
     return parsed
 
 
 def _enum(attrs: Attributes, key: str, allowed: set[str], code: str, issues: list[Issue]) -> None:
     value = (get_text(attrs, key) or "").strip()
-    if value and value not in allowed:
-        issues.append(_issue(code, key, f"{key} = '{value}'"))
+    if not value or value in allowed:
+        return
+    if key != "identifier_exists" and _canonical(value) in allowed:
+        issues.append(_issue("noncanonical_value", key, f"{key} «{value}» → {_canonical(value)}"))
+    else:
+        issues.append(_issue(code, key, f"«{value}»"))
 
 
 @dataclass
@@ -277,7 +302,7 @@ class CatalogValidator:
         pid = (get_text(attrs, "id") or "").strip()
         if pid:
             if pid in self._ids:
-                issues.append(_issue("duplicate_id", "id", f"ID '{pid}' repetido"))
+                issues.append(_issue("duplicate_id", "id", f"«{pid}» ya aparece en otro producto"))
             else:
                 self._ids[pid] = ref
         group = (get_text(attrs, "item_group_id") or "").strip() or None
