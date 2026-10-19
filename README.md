@@ -3,16 +3,58 @@
 [![CI](https://github.com/raulbernardogil/feedstudio/actions/workflows/ci.yml/badge.svg)](https://github.com/raulbernardogil/feedstudio/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-Web platform to import e-commerce XML product feeds, transform them with visual
-IF/THEN rules, validate them against channel requirements and publish optimized
-feeds at stable URLs. Functionally inspired by DataFeedWatch (no code, assets or
-texts reused). UI language: Spanish (i18n-ready).
+**Feed Studio fixes and publishes the product catalog that an online store sends
+to Google Shopping**, without touching the store and without writing code.
 
-**Status: Phase 1 (MVP) complete and tested end to end** with the real feed
-`client_feed.xml` (12.5 MB, 4,159 products). See
-[docs/pending.md](docs/pending.md) for what is not done or not verified.
+An online store exports its products as an XML file (the *feed*). Google
+Merchant Center reads that file to show the products in its ads, but feeds often
+arrive with problems: missing descriptions, prices in the wrong format, titles
+that are too long, duplicated products. Feed Studio reads the feed, lets you
+correct it with simple rules, checks it against Google's requirements and
+publishes a clean copy at a stable URL — automatically, as often as you choose.
+The original file is never modified.
 
-## What it does
+Self-hosted, open source (Apache-2.0). Interface in Spanish (ready for other
+languages). Functionally inspired by DataFeedWatch; no code, assets or texts
+reused.
+
+## How it works
+
+**1. See the state of your catalog at a glance.** How many products were
+imported, how many are valid, how many have warnings or errors, and which version
+of the feed is published.
+
+![Dashboard](docs/images/dashboard.png)
+
+**2. Fix the data with rules — no code.** A rule says *if* a condition holds,
+*then* change an attribute. Here: *if the description is empty, write a default
+one*. Rules can prepend or append text, combine attributes
+(`{brand} {title} - {color}`), replace words, normalize prices, exclude products
+and more. Before saving, the preview shows exactly which products change and how.
+
+![Rule editor](docs/images/rule-editor.png)
+
+**3. Check it against Google's requirements.** Every product is validated:
+*errors* would make Google reject the product (duplicate id, invalid GTIN, missing
+image, title over 150 characters), *warnings* are risky but readable values, and
+*recommendations* are improvements. Each issue links to Google's specification,
+shows the affected products and, when possible, creates the rule that fixes it.
+The comparison with the previous version shows whether things are improving.
+
+![Validation and diagnostics](docs/images/validation.png)
+
+**4. Publish and keep it up to date.** Each generated version can be published at
+a private, stable URL that Google Merchant Center downloads. Previous versions can
+be restored, the URL can be revoked, and a version that suddenly loses most of its
+products is not published. The feed can refresh itself every few hours (download →
+rules → validation → publication) and be uploaded to your Google Drive.
+
+![Export channels](docs/images/channels.png)
+
+Try it with the fictional demo store in [`demo/`](demo/README.md). Status and
+limits: [docs/pending.md](docs/pending.md).
+
+## Features
 
 1. Import XML from an upload or an HTTPS URL (RSS 2.0 + Google namespace, Atom 1.0,
    custom XML with auto-detected or configured product node; GZIP supported).
