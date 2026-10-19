@@ -1,5 +1,8 @@
 # Feed Studio
 
+[![CI](https://github.com/raulbernardogil/feedstudio/actions/workflows/ci.yml/badge.svg)](https://github.com/raulbernardogil/feedstudio/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 Web platform to import e-commerce XML product feeds, transform them with visual
 IF/THEN rules, validate them against channel requirements and publish optimized
 feeds at stable URLs. Functionally inspired by DataFeedWatch (no code, assets or

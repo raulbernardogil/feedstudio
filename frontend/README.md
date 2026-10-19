@@ -1,32 +1,55 @@
-# React + TypeScript + Vite
+# Feed Studio — frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + TypeScript single-page app for Feed Studio. It only controls operations:
+every transformation, preview and validation runs in the backend, so the UI can
+never show results different from the generated feed. See the
+[root README](../README.md) for the full project.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Vite · React 19 · TypeScript · Tailwind CSS 4 · Radix UI · TanStack Query ·
+TanStack Table 8 · React Hook Form + Zod · i18next (Spanish UI) · Vitest.
 
-## React Compiler
+## Development
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Requires Node.js ≥ 20 and the backend running on `http://localhost:8000`
+(`backend/run_dev.py`).
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+The app is served at http://localhost:5173. Vite proxies `/api`, `/f/` and
+`/health` to the backend; set `VITE_BACKEND_URL` to point elsewhere.
+
+## Scripts
+
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Development server with hot reload |
+| `npx tsc -b` | Type check |
+| `npx vitest run` | Unit and component tests |
+| `npm run lint` | Lint with oxlint |
+| `npm run build` | Production build into `dist/` |
+
+## Structure
+
+```
+src/
+  features/     one folder per screen: dashboard, sources, catalog, rules,
+                preview, validation, channels, jobs, settings
+  components/   UI primitives (Radix-based), layout, diff and job status
+  lib/          API client and types, workspace context, job polling, diff
+  i18n/         Spanish messages (add locales in i18n/index.ts)
+  test/         Vitest setup and tests
+```
+
+Screens follow a container/presentational split: containers fetch data with
+TanStack Query; presentational components receive props only.
+
+## Production
+
+`Dockerfile` builds the app and serves it with nginx (`nginx.conf`), which
+proxies the API and the public feed URLs. It is started by the root
+`docker-compose.yml` on http://localhost:8080.
