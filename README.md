@@ -49,8 +49,25 @@ npm run dev                                            # http://localhost:5173 (
 ```
 
 Open http://localhost:5173, go to **Fuentes XML → Añadir fuente** and upload
-`client_feed.xml` (or `backend/samples/sample_feed.xml`).
+the demo feed (see below) or `backend/samples/sample_feed.xml`.
 API docs: http://localhost:8000/docs.
+
+## Demo feed
+
+A fictional 50-product catalog (furniture, sofas, clothing, shoes, cleaning
+and bedding products; invented brands, SKUs, prices and `.example` URLs) is
+generated with:
+
+```bash
+cd backend
+.venv/Scripts/python -m scripts.make_demo_feed ../demo_feed.xml
+```
+
+It mirrors a typical e-commerce Google feed export and contains deliberate problems so
+the diagnostics have something to show: a duplicate id, an invalid GTIN, two
+empty descriptions, a missing image, a title over 150 characters, HTML in a
+description, promotional text, `sale_price ≥ price`, variants with and without
+`item_group_id`, out-of-stock items, and locale-formatted CLP prices.
 
 ## Docker Compose (PostgreSQL + Redis + RQ worker + nginx)
 
