@@ -61,6 +61,14 @@ stable URL. Details: [README](../README.md), [architecture](architecture.md),
     repo root (ignored by `/*.xml`). Diagnostics: 6 products with errors,
     44 with warnings. The client feed was moved to
     `backend/data/original_feeds/` (ignored, local only).
+14. Phase 3 automation: schedules (`scheduling.py`, `scheduler.py`, compose
+    service `scheduler`), `pipeline` and `deliver` jobs (`services/automation.py`),
+    Google OAuth + Drive resumable uploads (`integrations/google.py`), migration
+    0002, UI (schedule card, auto-publish switch, Drive destinations). Demo moved
+    to `demo/` with HTTPS URLs and `seed_demo.py` reproducing the user's example
+    (channel, rules "Añadir descripcion vacia" and "Añadir premium", refresh every
+    2 h). 106 backend tests pass; a real scheduled run worked in Docker. A real
+    Drive upload is pending the user's OAuth client (docs/google-drive.md).
 
 ## 3. How to run
 

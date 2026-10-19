@@ -28,11 +28,14 @@ exclusions, rule versioning, run history.
 - Rule templates library; copy rules between channels.
 
 ## Phase 3 — automation & channels
-- Scheduled refresh (6/12/24 h, custom) with a scheduler process
-  (`rq-scheduler` or APScheduler), auto-publish with anomaly threshold.
+Done (2026-10-19): scheduled refresh (every 1–24 h or fixed local times),
+pipeline with auto-publish and drop-threshold protection, Google Drive delivery
+(OAuth `drive.file`, same file updated). Verified: unit/API tests with a mocked
+Google API, and a real scheduled run in Docker against an HTTPS URL. **Not
+verified: a real upload to Google Drive** (needs the user's own OAuth client).
 - Meta and Pinterest adapters (Pinterest requirements gathered; Meta pending
   verification of the official spec).
-- Google Drive (OAuth with minimal scopes), SFTP and S3 sources; S3 storage adapter.
+- Google Drive as a *source* (read the input XML from Drive), SFTP and S3 sources; S3 storage adapter.
 - Error notifications (email/webhook).
 - Multiple catalogs per source / merging sources.
 

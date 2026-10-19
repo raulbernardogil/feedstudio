@@ -1,6 +1,6 @@
 """Generate the fictional demo feed (50 products) used for demos.
 
-    python -m scripts.make_demo_feed ../demo_feed.xml
+    python -m scripts.make_demo_feed ../demo/demo_feed.xml
 
 Everything is invented: brands, products, SKUs, prices, GTINs and URLs (on the
 reserved ``.example`` domain). The structure mirrors a typical e-commerce platform
@@ -15,7 +15,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-SITE = "http://www.tienda-demo.example"
+SITE = "https://www.tienda-demo.example"
 
 # (sku, title, brand, product_type, google_category, color, size, price, sale_price, extra)
 FURNITURE = "Mobiliario"
@@ -217,6 +217,6 @@ def build() -> str:
 
 
 if __name__ == "__main__":
-    out = Path(sys.argv[1] if len(sys.argv) > 1 else "demo_feed.xml")
+    out = Path(sys.argv[1] if len(sys.argv) > 1 else "../demo/demo_feed.xml")
     out.write_text(build(), encoding="utf-8")
     print(f"{out}: {len(PRODUCTS)} products")

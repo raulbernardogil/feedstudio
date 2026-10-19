@@ -30,6 +30,12 @@ texts reused). UI language: Spanish (i18n-ready).
    recommendations) → materialized before/after view → Google RSS 2.0 XML + CSV.
 7. Publish atomically at `/f/{secret-token}/google.xml`, roll back, revoke URLs;
    publication is blocked if a version suddenly loses most products.
+8. Refresh automatically: every 1–24 hours or at fixed times in a chosen time
+   zone. Each run downloads the XML, applies the rules, validates, publishes the
+   channels with automatic publication and uploads the result.
+9. Deliver to Google Drive: after each publication the XML is uploaded to the
+   user's Drive (OAuth, `drive.file` scope), always updating the same file so its
+   link stays stable. Setup: [docs/google-drive.md](docs/google-drive.md).
 
 ## Quick start (local development, no Docker)
 
@@ -52,22 +58,23 @@ Open http://localhost:5173, go to **Fuentes XML → Añadir fuente** and upload
 the demo feed (see below) or `backend/samples/sample_feed.xml`.
 API docs: http://localhost:8000/docs.
 
-## Demo feed
+## Demo
 
-A fictional 50-product catalog (furniture, sofas, clothing, shoes, cleaning
-and bedding products; invented brands, SKUs, prices and `.example` URLs) is
-generated with:
+A fictional 50-product store (furniture, sofas, clothing, shoes, cleaning and
+bedding; invented brands, SKUs, prices and HTTPS `.example` URLs) lives in
+[`demo/`](demo/README.md). With the stack running:
 
 ```bash
-cd backend
-.venv/Scripts/python -m scripts.make_demo_feed ../demo_feed.xml
+python demo/seed_demo.py
 ```
 
-It mirrors a typical e-commerce Google feed export and contains deliberate problems so
-the diagnostics have something to show: a duplicate id, an invalid GTIN, two
-empty descriptions, a missing image, a title over 150 characters, HTML in a
-description, promotional text, `sale_price ≥ price`, variants with and without
-`item_group_id`, out-of-stock items, and locale-formatted CLP prices.
+It creates the source **Tienda demo** reading
+`https://raw.githubusercontent.com/raulbernardogil/feedstudio/main/demo/demo_feed.xml`
+with a refresh **every 2 hours**, a Google Merchant Center channel with automatic
+publication and two rules, and runs the first update. The feed contains
+deliberate problems so the diagnostics have something to show (duplicate id,
+invalid GTIN, empty descriptions, missing image, long title, HTML, promotional
+text, `sale_price ≥ price`, variants with and without `item_group_id`).
 
 ## Docker Compose (PostgreSQL + Redis + RQ worker + nginx)
 
