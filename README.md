@@ -133,6 +133,15 @@ docs/             architecture, rules engine, requirements matrix, API, performa
 - [Performance](docs/performance.md)
 - [Pending work](docs/pending.md)
 
+## License
+
+Licensed under the [Apache License 2.0](LICENSE). You may use, modify and
+redistribute this software, including commercially, provided that you keep the
+[NOTICE](NOTICE) file crediting the original project and mark the files you
+changed.
+
+Copyright 2026 Raul Bernardo Gil.
+
 ## Security notes
 
 DTDs are rejected and libxml2 runs without entity resolution or network access;
