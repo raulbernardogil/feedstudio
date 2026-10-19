@@ -34,15 +34,26 @@ export interface Source {
   url: string | null
   item_tag: string | null
   schedule: string
+  schedule_config: ScheduleConfig
+  schedule_label: string
+  next_run_at: string | null
+  last_scheduled_run_at: string | null
   active_snapshot_id: number | null
   active_snapshot: Snapshot | null
   last_refresh_at: string | null
   created_at: string
 }
 
+export interface ScheduleConfig {
+  mode: 'manual' | 'interval' | 'daily'
+  every_hours?: number | null
+  times?: string[]
+  timezone?: string
+}
+
 export interface Job {
   id: number
-  kind: 'import' | 'generate'
+  kind: 'import' | 'generate' | 'pipeline' | 'deliver'
   status: 'queued' | 'running' | 'succeeded' | 'failed'
   source_id: number | null
   channel_id: number | null
@@ -219,6 +230,7 @@ export interface Channel {
   name: string
   kind: 'google'
   settings: { title?: string; link?: string; description?: string }
+  auto_publish: boolean
   published_version_id: number | null
   published_version: FeedVersion | null
   public_url: string
@@ -246,4 +258,28 @@ export interface FeedItemRow {
   changes: Change[]
   rule_issues: { rule_id: number; rule_name: string; message: string }[]
   issues: Issue[]
+}
+
+export interface GoogleAccount {
+  id: number
+  email: string | null
+  status: 'active' | 'invalid'
+  scopes: string[]
+  created_at: string
+}
+
+export interface Destination {
+  id: number
+  channel_id: number
+  kind: 'gdrive'
+  google_account_id: number | null
+  folder_id: string | null
+  file_name: string
+  enabled: boolean
+  remote_file_id: string | null
+  remote_url: string | null
+  last_status: 'succeeded' | 'failed' | null
+  last_error: string | null
+  last_delivered_at: string | null
+  last_version_id: number | null
 }

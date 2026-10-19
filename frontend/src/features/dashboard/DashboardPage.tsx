@@ -14,6 +14,7 @@ const STEPS = [
   ['Generar y validar el feed', '/channels'],
   ['Revisar diagnóstico', '/validation'],
   ['Publicar o descargar', '/channels'],
+  ['Programar actualizaciones y Google Drive', '/sources'],
 ] as const
 
 export function DashboardPage() {
@@ -32,7 +33,7 @@ export function DashboardPage() {
         <Stat label="Con errores" value={formatNumber(data.errors)} tone="bad" />
         <Stat label="Reglas activas" value={formatNumber(data.active_rules)} />
         <Stat label="Última sincronización" value={<span className="text-base">{formatDate(data.last_sync)}</span>} />
-        <Stat label="Próxima actualización" value={<span className="text-base">No programada</span>} hint="La programación automática llega en la fase 3" />
+        <Stat label="Próxima actualización" value={<span className="text-base">{data.next_sync ? formatDate(data.next_sync) : 'No programada'}</span>} hint={data.next_sync ? 'Actualización automática de fuentes' : <Link className="text-brand-600 underline" to="/sources">Programar en Fuentes XML</Link>} />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">

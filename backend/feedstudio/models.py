@@ -64,7 +64,10 @@ class Source(Base, TimestampMixin):
     kind: Mapped[str] = mapped_column(String(20))  # upload | url
     url: Mapped[str | None] = mapped_column(Text)
     item_tag: Mapped[str | None] = mapped_column(String(200))
-    schedule: Mapped[str] = mapped_column(String(20), default="manual")
+    schedule: Mapped[str] = mapped_column(String(20), default="manual")  # manual | interval | daily
+    schedule_config: Mapped[dict | None] = mapped_column(JSONType)  # see feedstudio/scheduling.py
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    last_scheduled_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     active_snapshot_id: Mapped[int | None] = mapped_column(ForeignKey("source_snapshots.id", use_alter=True, ondelete="SET NULL"))
     last_refresh_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -149,9 +152,43 @@ class Channel(Base, TimestampMixin):
     kind: Mapped[str] = mapped_column(String(30))  # google | csv
     public_token: Mapped[str] = mapped_column(String(64), unique=True)
     settings: Mapped[dict] = mapped_column(JSONType, default=dict)
+    # Publish automatically after each scheduled/pipeline run (safety threshold still applies).
+    auto_publish: Mapped[bool] = mapped_column(Boolean, default=False)
     published_version_id: Mapped[int | None] = mapped_column(
         ForeignKey("feed_versions.id", use_alter=True, ondelete="SET NULL")
     )
+
+
+class GoogleAccount(Base, TimestampMixin):
+    """A Google account connected with OAuth (scope drive.file). The refresh token
+    is stored encrypted and never returned by the API."""
+
+    __tablename__ = "google_accounts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), index=True)
+    email: Mapped[str | None] = mapped_column(String(320))
+    scopes: Mapped[str] = mapped_column(Text)
+    encrypted_refresh_token: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active | invalid
+
+
+class ChannelDestination(Base, TimestampMixin):
+    """Where a channel's published feed is delivered after each publication."""
+
+    __tablename__ = "channel_destinations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(20), default="gdrive")
+    google_account_id: Mapped[int | None] = mapped_column(ForeignKey("google_accounts.id", ondelete="SET NULL"))
+    folder_id: Mapped[str | None] = mapped_column(String(200))
+    file_name: Mapped[str] = mapped_column(String(200))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    remote_file_id: Mapped[str | None] = mapped_column(String(200))
+    remote_url: Mapped[str | None] = mapped_column(Text)
+    last_status: Mapped[str | None] = mapped_column(String(20))  # succeeded | failed
+    last_error: Mapped[str | None] = mapped_column(Text)
+    last_delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_version_id: Mapped[int | None] = mapped_column(ForeignKey("feed_versions.id", ondelete="SET NULL"))
 
 
 class Rule(Base, TimestampMixin):

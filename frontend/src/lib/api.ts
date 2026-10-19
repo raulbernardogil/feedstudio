@@ -1,6 +1,6 @@
 import type {
-  Channel, FeedItemRow, FeedVersion, IssueSummary, Job, Page, PreviewResult, Product, Rule,
-  RuleDefinition, SchemaField, Snapshot, Source,
+  Channel, Destination, FeedItemRow, FeedVersion, GoogleAccount, IssueSummary, Job, Page, PreviewResult, Product, Rule,
+  RuleDefinition, ScheduleConfig, SchemaField, Snapshot, Source,
 } from './types'
 
 export class ApiError extends Error {
@@ -107,6 +107,8 @@ export const api = {
     request<Source>('PATCH', `/api/sources/${id}`, body),
   deleteSource: (id: number) => request<void>('DELETE', `/api/sources/${id}`),
   refreshSource: (id: number) => request<{ job: Job }>('POST', `/api/sources/${id}/refresh`),
+  setSchedule: (id: number, body: ScheduleConfig) => request<Source>('PUT', `/api/sources/${id}/schedule`, body),
+  runSource: (id: number) => request<{ job: Job }>('POST', `/api/sources/${id}/run`),
   snapshots: (id: number) => request<{ items: Snapshot[] }>('GET', `/api/sources/${id}/snapshots`),
   schema: (id: number) => request<{ snapshot_id: number | null; product_count?: number; fields: SchemaField[] }>('GET', `/api/sources/${id}/schema`),
 
@@ -130,9 +132,9 @@ export const api = {
     request<PreviewResult>('POST', '/api/rules/preview', body),
 
   channels: (sourceId?: number) => request<{ items: Channel[] }>('GET', '/api/channels', undefined, { source_id: sourceId }),
-  createChannel: (body: { source_id: number; name: string; kind: 'google'; settings: Channel['settings'] }) =>
+  createChannel: (body: { source_id: number; name: string; kind: 'google'; settings: Channel['settings']; auto_publish?: boolean }) =>
     request<Channel>('POST', '/api/channels', body),
-  updateChannel: (id: number, body: { name?: string; settings?: Channel['settings'] }) =>
+  updateChannel: (id: number, body: { name?: string; settings?: Channel['settings']; auto_publish?: boolean }) =>
     request<Channel>('PATCH', `/api/channels/${id}`, body),
   deleteChannel: (id: number) => request<void>('DELETE', `/api/channels/${id}`),
   rotateToken: (id: number) => request<Channel>('POST', `/api/channels/${id}/rotate-token`),
@@ -144,6 +146,17 @@ export const api = {
   publish: (id: number, force = false) => request<Channel>('POST', `/api/feed-versions/${id}/publish`, { force }),
   versionIssues: (id: number) => request<VersionIssues>('GET', `/api/feed-versions/${id}/issues`),
   versionItems: (id: number, query: ItemsQuery) => request<Page<FeedItemRow>>('GET', `/api/feed-versions/${id}/items`, undefined, query),
+
+  googleStatus: () => request<{ configured: boolean; redirect_uri: string; accounts: GoogleAccount[] }>('GET', '/api/integrations/google'),
+  googleAuthorize: () => request<{ url: string }>('POST', '/api/integrations/google/authorize'),
+  googleDisconnect: (id: number) => request<void>('DELETE', `/api/integrations/google/${id}`),
+  destinations: (channelId: number) => request<{ items: Destination[] }>('GET', `/api/channels/${channelId}/destinations`),
+  createDestination: (channelId: number, body: { google_account_id: number; file_name: string; folder?: string | null }) =>
+    request<Destination>('POST', `/api/channels/${channelId}/destinations`, body),
+  updateDestination: (id: number, body: { file_name?: string; folder?: string | null; enabled?: boolean }) =>
+    request<Destination>('PATCH', `/api/destinations/${id}`, body),
+  deleteDestination: (id: number) => request<void>('DELETE', `/api/destinations/${id}`),
+  deliverNow: (id: number) => request<{ job: Job }>('POST', `/api/destinations/${id}/deliver`),
 
   jobs: (query: Query) => request<Page<Job>>('GET', '/api/jobs', undefined, query),
   job: (id: number) => request<Job>('GET', `/api/jobs/${id}`),

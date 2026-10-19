@@ -101,7 +101,7 @@ def dashboard(s: Session = SessionDep, p: Principal = PrincipalDep):
         "errors": levels.get("error", 0),
         "active_rules": rules,
         "last_sync": dt(last_refresh),
-        "next_sync": None,  # scheduled refresh is not implemented yet (Phase 3)
+        "next_sync": dt(min((src.next_run_at for src in sources if src.next_run_at), default=None)),
         "channels": channel_rows,
         "recent_jobs": [job_out(j) for j in recent_jobs],
     }

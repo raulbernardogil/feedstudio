@@ -9,6 +9,7 @@ import type { Source } from '../../lib/types'
 import { useJob } from '../../lib/useJob'
 import { useWorkspace } from '../../lib/workspace'
 import { AddSourceDialog } from './AddSourceDialog'
+import { ScheduleCard } from './ScheduleCard'
 
 export function SourcesPage() {
   const ws = useWorkspace()
@@ -103,6 +104,8 @@ function SourceDetail({ source }: { source: Source }) {
           <p className="text-sm text-slate-500">Aún no hay ningún snapshot válido.</p>
         )}
       </Card>
+
+      <ScheduleCard source={source} key={`${source.id}-${JSON.stringify(source.schedule_config)}`} />
 
       <Card title="Atributos detectados">
         {schema.isLoading ? <Spinner /> : <ErrorBox error={schema.error} />}

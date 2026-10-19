@@ -22,6 +22,20 @@ Conventions:
 | GET | `/api/sources/{id}/snapshots` | Import history |
 | GET | `/api/sources/{id}/schema` | Detected attributes (kind, type, coverage, samples) |
 
+| PUT | `/api/sources/{id}/schedule` | `{mode: manual|interval|daily, every_hours, times: ["08:00"], timezone}`; URL sources only |
+| POST | `/api/sources/{id}/run` | Run the full pipeline now (refresh → generate → auto-publish → deliver) |
+
+## Google Drive
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/integrations/google` | Whether the server is configured, redirect URI and connected accounts |
+| POST | `/api/integrations/google/authorize` | Consent URL (scope `drive.file`) |
+| GET | `/api/integrations/google/callback` | OAuth redirect target (signed, expiring `state`) |
+| DELETE | `/api/integrations/google/{id}` | Revoke and remove an account |
+| GET / POST | `/api/channels/{id}/destinations` | Drive destinations: `{google_account_id, file_name, folder}` (folder URL or id) |
+| PATCH / DELETE | `/api/destinations/{id}` | Rename, change folder, pause, remove |
+| POST | `/api/destinations/{id}/deliver` | Upload the published version now |
+
 ## Catalogs (catalog id = source id)
 | Method | Path | Description |
 |---|---|---|

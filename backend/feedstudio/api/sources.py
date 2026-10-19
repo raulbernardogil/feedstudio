@@ -13,7 +13,9 @@ from feedstudio.api.serializers import job_out, snapshot_out, source_out
 from feedstudio.config import get_settings
 from feedstudio.ingestion.fetcher import FetchError, validate_url
 from feedstudio.jobs import get_runner
-from feedstudio.models import ProcessingJob, Source, SourceSchemaField, SourceSnapshot
+from feedstudio.models import ProcessingJob, Source, SourceSchemaField, SourceSnapshot, utcnow
+from feedstudio.scheduling import ScheduleConfig, next_run
+from feedstudio.services.automation import start_pipeline
 from feedstudio.services.importing import fetch_policy, snapshot_key
 from feedstudio.storage import StorageError, get_storage
 
@@ -192,3 +194,36 @@ def get_schema(source_id: int, snapshot_id: int | None = None, s: Session = Sess
             for f in fields
         ],
     }
+
+
+@router.put("/{source_id}/schedule")
+def set_schedule(source_id: int, body: ScheduleConfig, s: Session = SessionDep, p: Principal = PrincipalDep):
+    """Automatic refresh: download, apply rules, publish (if enabled) and deliver."""
+    source = owned(s, Source, source_id, p, "Fuente")
+    if body.mode != "manual" and source.kind != "url":
+        raise ApiError(422, "schedule_requires_url",
+                       "La actualización programada necesita una fuente por URL (un archivo subido no se puede volver a descargar)")
+    source.schedule = body.mode
+    source.schedule_config = body.model_dump()
+    source.next_run_at = next_run(body, utcnow())
+    audit(s, p, "source.schedule", "source", source.id, body.model_dump())
+    s.commit()
+    active = s.get(SourceSnapshot, source.active_snapshot_id) if source.active_snapshot_id else None
+    return source_out(source, active)
+
+
+@router.post("/{source_id}/run", status_code=202)
+def run_now(source_id: int, s: Session = SessionDep, p: Principal = PrincipalDep):
+    """Run the full pipeline now (same steps as a scheduled run)."""
+    source = owned(s, Source, source_id, p, "Fuente")
+    running = s.scalar(select(ProcessingJob.id).where(
+        ProcessingJob.source_id == source.id, ProcessingJob.kind.in_(("pipeline", "import")),
+        ProcessingJob.status.in_(("queued", "running"))))
+    if running:
+        raise ApiError(409, "run_in_progress", "Ya hay una ejecución en curso para esta fuente", {"job_id": running})
+    job = start_pipeline(s, source, trigger="manual")
+    audit(s, p, "source.run", "source", source.id)
+    s.commit()
+    get_runner().enqueue(job.id)
+    s.refresh(job)
+    return {"job": job_out(job)}

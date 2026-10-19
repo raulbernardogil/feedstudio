@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import structlog
@@ -10,11 +11,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from feedstudio import __version__
-from feedstudio.api import catalogs, channels, errors, rules, sources, system
+from feedstudio.api import catalogs, channels, errors, integrations, rules, sources, system
 from feedstudio.config import get_settings
 from feedstudio.logging import configure_logging, log
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent / "static"
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    settings = get_settings()
+    embedded = settings.scheduler_mode == "embedded" and settings.environment != "test"
+    if embedded:
+        from feedstudio import scheduler
+
+        scheduler.start_embedded()
+    yield
+    if embedded:
+        scheduler.stop_embedded()
 
 
 def create_app() -> FastAPI:
@@ -24,6 +38,7 @@ def create_app() -> FastAPI:
         title="Feed Studio API",
         version=__version__,
         description="Importación, transformación por reglas, validación y publicación de feeds XML de productos.",
+        lifespan=lifespan,
     )
     errors.install(app)
     app.add_middleware(
@@ -46,7 +61,7 @@ def create_app() -> FastAPI:
         structlog.contextvars.clear_contextvars()
         return response
 
-    for module in (sources, catalogs, rules, channels, system):
+    for module in (sources, catalogs, rules, channels, integrations, system):
         app.include_router(module.router)
 
     # Serve the built SPA when present (single-container deployment).

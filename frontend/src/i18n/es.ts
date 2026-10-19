@@ -51,6 +51,8 @@ export const es = {
     failed: 'Fallido',
     import: 'Importación',
     generate: 'Generación de feed',
+    pipeline: 'Actualización completa',
+    deliver: 'Subida a Google Drive',
   },
   operators: {
     contains: 'contiene',

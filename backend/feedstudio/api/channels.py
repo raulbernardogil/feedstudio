@@ -16,7 +16,8 @@ from feedstudio.api.querying import filter_clause, issue_code_clause, parse_filt
 from feedstudio.api.serializers import channel_out, dt, job_out, version_out
 from feedstudio.jobs import get_runner
 from feedstudio.models import Channel, FeedItem, FeedPublication, FeedVersion, ProcessingJob, Product, Source, ValidationIssue
-from feedstudio.services.feeds import PublishBlocked, publish
+from feedstudio.services.automation import queue_deliveries
+from feedstudio.services.feeds import PublishBlocked, create_generation, publish
 from feedstudio.storage import get_storage
 
 router = APIRouter(prefix="/api", tags=["channels & feeds"])
@@ -33,11 +34,13 @@ class ChannelCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     kind: Literal["google"] = "google"
     settings: ChannelSettings = ChannelSettings()
+    auto_publish: bool = False
 
 
 class ChannelUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     settings: ChannelSettings | None = None
+    auto_publish: bool | None = None
 
 
 class GenerateRequest(BaseModel):
@@ -72,7 +75,8 @@ def list_channels(source_id: int | None = None, s: Session = SessionDep, p: Prin
 def create_channel(body: ChannelCreate, s: Session = SessionDep, p: Principal = PrincipalDep):
     owned(s, Source, body.source_id, p, "Fuente")
     channel = Channel(organization_id=p.organization_id, source_id=body.source_id, name=body.name, kind=body.kind,
-                      public_token=secrets.token_urlsafe(24), settings=body.settings.model_dump(exclude_none=True))
+                      public_token=secrets.token_urlsafe(24), settings=body.settings.model_dump(exclude_none=True),
+                      auto_publish=body.auto_publish)
     s.add(channel)
     s.flush()
     audit(s, p, "channel.create", "channel", channel.id, {"kind": body.kind})
@@ -93,6 +97,8 @@ def update_channel(channel_id: int, body: ChannelUpdate, s: Session = SessionDep
         c.name = body.name
     if body.settings is not None:
         c.settings = body.settings.model_dump(exclude_none=True)
+    if body.auto_publish is not None:
+        c.auto_publish = body.auto_publish
     audit(s, p, "channel.update", "channel", c.id)
     s.commit()
     return channel_out(c)
@@ -142,15 +148,7 @@ def generate(body: GenerateRequest, s: Session = SessionDep, p: Principal = Prin
                                                       ProcessingJob.status.in_(("queued", "running"))))
     if running:
         raise ApiError(409, "generate_in_progress", "Ya se está generando una versión de este canal", {"job_id": running})
-    number = (s.scalar(select(func.max(FeedVersion.number)).where(FeedVersion.channel_id == c.id)) or 0) + 1
-    version = FeedVersion(channel_id=c.id, snapshot_id=snap.id, number=number, status="building")
-    s.add(version)
-    s.flush()
-    job = ProcessingJob(organization_id=p.organization_id, kind="generate", source_id=c.source_id, channel_id=c.id,
-                        params={"version_id": version.id}, events=[])
-    s.add(job)
-    s.flush()
-    version.job_id = job.id
+    version, job = create_generation(s, c, snap.id)
     s.commit()
     get_runner().enqueue(job.id)
     s.refresh(job)
@@ -179,6 +177,8 @@ def publish_version(version_id: int, body: PublishRequest | None = None, s: Sess
         raise ApiError(409, "publish_blocked", exc.message, exc.detail) from exc
     audit(s, p, f"feed.{action}", "feed_version", v.id, {"channel_id": c.id, "previous": current})
     s.commit()
+    # Every publication is delivered to the channel's destinations (e.g. Google Drive).
+    queue_deliveries(s, c, v.id)
     return channel_out(c, v)
 
 

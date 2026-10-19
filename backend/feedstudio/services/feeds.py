@@ -236,6 +236,20 @@ def _columns(s: Session, snapshot_id: int, version_id: int) -> list[str]:
     return [k for k in keys if exportable(k)]
 
 
+def create_generation(s: Session, channel: Channel, snapshot_id: int) -> tuple[FeedVersion, ProcessingJob]:
+    """Create a candidate version and its (queued) generation job. Caller commits."""
+    number = (s.scalar(select(func.max(FeedVersion.number)).where(FeedVersion.channel_id == channel.id)) or 0) + 1
+    version = FeedVersion(channel_id=channel.id, snapshot_id=snapshot_id, number=number, status="building")
+    s.add(version)
+    s.flush()
+    job = ProcessingJob(organization_id=channel.organization_id, kind="generate", source_id=channel.source_id,
+                        channel_id=channel.id, params={"version_id": version.id}, events=[])
+    s.add(job)
+    s.flush()
+    version.job_id = job.id
+    return version, job
+
+
 def publish(s: Session, channel: Channel, version: FeedVersion, actor: str, force: bool = False, action: str = "publish") -> FeedPublication:
     if version.channel_id != channel.id:
         raise ValueError("La versión no pertenece a este canal")

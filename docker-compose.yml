@@ -11,6 +11,13 @@ x-backend-env: &backend-env
   FEEDSTUDIO_API_TOKEN: ${FEEDSTUDIO_API_TOKEN:-}
   FEEDSTUDIO_MAX_FEED_MB: ${FEEDSTUDIO_MAX_FEED_MB:-200}
   FEEDSTUDIO_ALLOW_HTTP_SOURCES: ${FEEDSTUDIO_ALLOW_HTTP_SOURCES:-false}
+  FEEDSTUDIO_APP_BASE_URL: ${FEEDSTUDIO_APP_BASE_URL:-http://localhost:8080}
+  # The dedicated "scheduler" service runs scheduled refreshes.
+  FEEDSTUDIO_SCHEDULER_MODE: external
+  # Google Drive delivery (optional, see docs/google-drive.md)
+  FEEDSTUDIO_SECRET_KEY: ${FEEDSTUDIO_SECRET_KEY:-}
+  FEEDSTUDIO_GOOGLE_CLIENT_ID: ${FEEDSTUDIO_GOOGLE_CLIENT_ID:-}
+  FEEDSTUDIO_GOOGLE_CLIENT_SECRET: ${FEEDSTUDIO_GOOGLE_CLIENT_SECRET:-}
 
 services:
   db:
@@ -49,6 +56,17 @@ services:
     command: ["rq", "worker", "feedstudio", "--url", "redis://redis:6379/0"]
     healthcheck:
       disable: true  # the image healthcheck probes the HTTP API, which the worker does not serve
+    environment: *backend-env
+    volumes:
+      - storage:/data
+    depends_on:
+      api: { condition: service_healthy }
+
+  scheduler:
+    build: ./backend
+    command: ["python", "-m", "feedstudio.scheduler"]
+    healthcheck:
+      disable: true  # the image healthcheck probes the HTTP API, which the scheduler does not serve
     environment: *backend-env
     volumes:
       - storage:/data
